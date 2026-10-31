@@ -2,6 +2,10 @@
 
 CM 01/02 Bosman Edition uses semantic versioning. A patch release (0.1.1) fixes bugs. A minor release (0.2.0) adds features. A major release (1.0.0 and later) can break saved games or settings. Releases below 1.0.0 are test releases.
 
+## 0.9.0 (in work)
+
+- The Load Game list shows the newest saved game first. Before, the list followed the order of the file system. `tests/smoke/load_order_run.py` checks it.
+
 ## 0.6.1 (pre-release)
 
 Fixes for 0.6.0: crashes at save and start, wrong names, and faster new games.

@@ -1086,6 +1086,32 @@ static void find_add_dir(Find *f, const char *host, const char *mask, int is_roo
     host_closedir(d);
 }
 
+/* The saved games of a find, newest first (0.9.0). The original lists a folder in the order of the file system, which
+ * is by name on Windows. The Load list reads the find in order, so the newest save comes on top. Ties go by name. */
+static int sav_newer(const char *pa, const char *na, const char *pb, const char *nb)
+{
+    HostStat a, b;
+    int64_t ta = host_stat(pa, &a) == 0 ? (int64_t)a.mtime : 0;
+    int64_t tb = host_stat(pb, &b) == 0 ? (int64_t)b.mtime : 0;
+    if (ta != tb) return ta > tb;
+    return strcasecmp(na, nb) < 0;
+}
+
+static void find_sort_newest(Find *f, int from)
+{
+    for (int i = from + 1; i < f->count; i++) {       /* a stable insertion sort: the lists are short */
+        char *n = f->names[i], *p = f->paths[i];
+        int j = i - 1;
+        while (j >= from && sav_newer(p, n, f->paths[j], f->names[j])) {
+            f->names[j + 1] = f->names[j];
+            f->paths[j + 1] = f->paths[j];
+            j--;
+        }
+        f->names[j + 1] = n;
+        f->paths[j + 1] = p;
+    }
+}
+
 RT_IMPORT(FindFirstFileA)
 {
     const char *pattern = win_str(rt_arg(0));
@@ -1110,7 +1136,15 @@ RT_IMPORT(FindFirstFileA)
     int game_dir = sd && (HOST_FOLDS_CASE ? !strcasecmp(h, win_game_dir) : !strcmp(h, win_game_dir));
     find_add_dir(f, u, mask, is_root, game_dir ? SAV_SKIP : SAV_ALL);   /* the user folder first: it wins on equal names */
     find_add_dir(f, h, mask, is_root, game_dir ? SAV_SKIP : SAV_ALL);
+    int sav_from = f->count;
     if (game_dir) find_add_dir(f, sd, mask, 0, SAV_ONLY);       /* the saved games of the save folder */
+    if (game_dir) {
+        find_sort_newest(f, sav_from);                          /* the saved games of the save folder */
+    } else {
+        int all_sav = f->count > 1;                             /* a folder of saved games only, such as a custom save folder */
+        for (int k = 0; k < f->count && all_sav; k++) all_sav = has_sav_ending(f->names[k]);
+        if (all_sav) find_sort_newest(f, 0);
+    }
     WIN_TRACE("FindFirstFileA(%s) in %s + %s: %d matches\n", pattern, u, h, f->count);
     if (!f->count) {
         free_find(f);
