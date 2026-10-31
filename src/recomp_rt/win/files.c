@@ -1183,6 +1183,38 @@ RT_IMPORT(FindClose)
     rt_ret_stdcall(f != NULL, 1);
 }
 
+/* The newest saved game of the save folder, as the path that the Load Game dialog hands to the game: the game
+ * folder with the file name, in the form of Windows. 0 when the folder holds no saved game. The temporary file of a
+ * save in progress is not a saved game. (Load last save, 0.9.0) */
+int win_newest_save(char *out, size_t room)
+{
+    const char *sd = save_dir();
+    if (!sd) sd = win_user_dir;
+    Find f;
+    memset(&f, 0, sizeof f);
+    find_add_dir(&f, sd, "*.sav", 0, SAV_ONLY);
+    int keep = 0;
+    for (int i = 0; i < f.count; i++) {
+        if (!strcasecmp(f.names[i], "temp_save_file.sav") || is_dir(f.paths[i])) {
+            free(f.names[i]);
+            free(f.paths[i]);
+        } else {
+            f.names[keep] = f.names[i];
+            f.paths[keep++] = f.paths[i];
+        }
+    }
+    f.count = keep;
+    find_sort_newest(&f, 0);
+    int ok = f.count > 0;
+    if (ok) {
+        char game[1100];
+        win_windows_path(win_game_dir, game, sizeof game);
+        snprintf(out, room, "%s\\%s", game, f.names[0]);
+    }
+    free_find(&f);
+    return ok;
+}
+
 int win_list_files(const char *folder, const char *mask, void (*each)(const char *name, const char *host, void *ctx),
                    void *ctx)
 {
